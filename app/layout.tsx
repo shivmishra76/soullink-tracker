@@ -3,7 +3,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SoulLink Tracker",
-  description: "3-player randomized Pokemon Soul Link Nuzlocke tracker"
+  description: "3-player randomized Pokemon Soul Link Nuzlocke tracker",
+  icons: {
+    icon: "/icon.svg"
+  }
 };
 
 export default function RootLayout({
