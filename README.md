@@ -33,6 +33,8 @@ NEXT_PUBLIC_SOULLINK_RUN_ID=pokemon-black
 npm run dev
 ```
 
-On first load, the app seeds the starter links into Supabase if that run is empty. After that, add/edit/delete/status changes sync live across every browser using the same `NEXT_PUBLIC_SOULLINK_RUN_ID`.
+The app supports multiple shared runs. Use **New Run** to seed a fresh Pokemon Black encounter template, **Clear Run** to remove the selected run's rows, and **Reset Template** to replace the selected run with the template again.
+
+If you already deployed an older version, re-run `supabase/schema.sql` once so Supabase creates the `soul_runs` table and realtime policy. Existing `soul_links` data is preserved.
 
 The SQL policies intentionally allow public read/write access for the shared no-login MVP. Use an unguessable run id or add authentication before sharing the app widely.

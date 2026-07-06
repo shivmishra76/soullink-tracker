@@ -4,12 +4,17 @@ import { Fragment, useEffect, useState } from "react";
 import { AlertTriangle, Check, Pencil, Trash2, X } from "lucide-react";
 import { PokemonCell } from "@/components/pokemon-cell";
 import { PokemonSearchInput } from "@/components/pokemon-search-input";
-import { StatusBadge } from "@/components/status-badge";
 import { TypeBadge } from "@/components/type-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { fetchPokemon, getPokemonIdByName } from "@/lib/pokemon";
 import type { LinkStatus, PlayerName, SoulLink, SoulLinkMember } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -23,6 +28,13 @@ const rowStatusStyles: Record<LinkStatus, string> = {
   Dead: "bg-red-500/[0.08] hover:bg-red-500/[0.12]",
   Boxed: "bg-slate-500/[0.09] hover:bg-slate-500/[0.13]",
   Pending: "bg-yellow-500/[0.08] hover:bg-yellow-500/[0.12]"
+};
+
+const statusSelectStyles: Record<LinkStatus, string> = {
+  Alive: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
+  Dead: "border-red-400/30 bg-red-400/10 text-red-100",
+  Boxed: "border-slate-400/30 bg-slate-400/10 text-slate-100",
+  Pending: "border-yellow-400/30 bg-yellow-400/10 text-yellow-100"
 };
 
 type SoulLinkTableProps = {
@@ -104,7 +116,7 @@ export function SoulLinkTable({
             <col className="w-[20%]" />
             <col className="w-[20%]" />
             <col className="w-[20%]" />
-            <col className="w-48" />
+            <col className="w-44" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-zinc-950/95 text-xs uppercase text-muted-foreground backdrop-blur">
             <tr>
@@ -143,14 +155,18 @@ export function SoulLinkTable({
                     ))}
                     <td className="px-3 py-3">
                       <div className="flex flex-col gap-2">
-                        <StatusBadge status={link.status} />
                         <Select
                           value={link.status}
                           onValueChange={(value) =>
                             onStatusChange(link.id, value as LinkStatus)
                           }
                         >
-                          <SelectTrigger className="h-8">
+                          <SelectTrigger
+                            className={cn(
+                              "h-8 font-semibold",
+                              statusSelectStyles[link.status]
+                            )}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -165,21 +181,23 @@ export function SoulLinkTable({
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
+                            size="icon"
+                            className="h-8 w-full"
+                            aria-label={`Edit link ${link.linkNumber}`}
                             onClick={() =>
                               setEditingLinkId((current) =>
                                 current === link.id ? null : link.id
                               )
                             }
                           >
-                            <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                            Edit
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
-                            className="border-red-400/30 text-red-200 hover:bg-red-400/10 hover:text-red-100"
+                            size="icon"
+                            className="h-8 w-full border-red-400/30 text-red-200 hover:bg-red-400/10 hover:text-red-100"
+                            aria-label={`Delete link ${link.linkNumber}`}
                             onClick={() => {
                               const shouldDelete = window.confirm(
                                 `Delete link #${link.linkNumber} from ${link.area}?`
@@ -187,11 +205,13 @@ export function SoulLinkTable({
 
                               if (shouldDelete) {
                                 onLinkDelete(link.id);
+                                setEditingLinkId((current) =>
+                                  current === link.id ? null : current
+                                );
                               }
                             }}
                           >
-                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                            Del
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                         {!validation.isValid && (

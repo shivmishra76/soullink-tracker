@@ -122,7 +122,7 @@ export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
         return;
       }
 
-      onAddLink({
+      await onAddLink({
         id: `link-${linkNumber}-${Date.now()}`,
         linkNumber,
         area: form.area.trim(),

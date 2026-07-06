@@ -1,3 +1,10 @@
+create table if not exists public.soul_runs (
+  id text primary key,
+  name text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.soul_links (
   id text primary key,
   run_id text not null default 'pokemon-black',
@@ -20,13 +27,49 @@ begin
 end;
 $$;
 
+drop trigger if exists set_soul_runs_updated_at on public.soul_runs;
+create trigger set_soul_runs_updated_at
+before update on public.soul_runs
+for each row
+execute function public.set_updated_at();
+
 drop trigger if exists set_soul_links_updated_at on public.soul_links;
 create trigger set_soul_links_updated_at
 before update on public.soul_links
 for each row
 execute function public.set_updated_at();
 
+insert into public.soul_runs (id, name)
+values ('pokemon-black', 'Pokemon Black')
+on conflict (id) do nothing;
+
+alter table public.soul_runs enable row level security;
 alter table public.soul_links enable row level security;
+
+drop policy if exists "Anyone can read soul runs" on public.soul_runs;
+create policy "Anyone can read soul runs"
+on public.soul_runs for select
+to anon
+using (true);
+
+drop policy if exists "Anyone can insert soul runs" on public.soul_runs;
+create policy "Anyone can insert soul runs"
+on public.soul_runs for insert
+to anon
+with check (true);
+
+drop policy if exists "Anyone can update soul runs" on public.soul_runs;
+create policy "Anyone can update soul runs"
+on public.soul_runs for update
+to anon
+using (true)
+with check (true);
+
+drop policy if exists "Anyone can delete soul runs" on public.soul_runs;
+create policy "Anyone can delete soul runs"
+on public.soul_runs for delete
+to anon
+using (true);
 
 drop policy if exists "Anyone can read soul links" on public.soul_links;
 create policy "Anyone can read soul links"
@@ -63,6 +106,16 @@ begin
       and tablename = 'soul_links'
   ) then
     alter publication supabase_realtime add table public.soul_links;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'soul_runs'
+  ) then
+    alter publication supabase_realtime add table public.soul_runs;
   end if;
 end;
 $$;

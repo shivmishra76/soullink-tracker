@@ -38,6 +38,13 @@ export type SoulLink = {
   status: LinkStatus;
 };
 
+export type SoulRun = {
+  id: string;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type TypeValidation = {
   isValid: boolean;
   duplicateTypes: PokemonType[];
