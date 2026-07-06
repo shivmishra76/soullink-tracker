@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  Check,
   Archive,
   Eraser,
   HeartPulse,
@@ -58,6 +59,7 @@ export default function Home() {
     return window.localStorage.getItem(selectedRunStorageKey) ?? soulLinkRunId;
   });
   const [isAddingLink, setIsAddingLink] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState<"clear" | "reset" | null>(null);
   const [syncMessage, setSyncMessage] = useState(
     isSupabaseConfigured ? "Connecting..." : "Local mode"
   );
@@ -66,6 +68,7 @@ export default function Home() {
 
   useEffect(() => {
     window.localStorage.setItem(selectedRunStorageKey, activeRunId);
+    setConfirmationAction(null);
   }, [activeRunId]);
 
   useEffect(() => {
@@ -321,13 +324,7 @@ export default function Home() {
   };
 
   const clearCurrentRun = async () => {
-    const shouldClear = window.confirm(
-      `Clear every row from ${activeRun?.name ?? "this run"}? This cannot be undone.`
-    );
-
-    if (!shouldClear) {
-      return;
-    }
+    setConfirmationAction(null);
 
     const previousLinks = links;
     setLinks([]);
@@ -345,13 +342,7 @@ export default function Home() {
   };
 
   const resetCurrentRun = async () => {
-    const shouldReset = window.confirm(
-      `Reset ${activeRun?.name ?? "this run"} from the encounter template? Current rows will be replaced.`
-    );
-
-    if (!shouldReset) {
-      return;
-    }
+    setConfirmationAction(null);
 
     const previousLinks = links;
     setLinks(encounterTemplateLinks);
@@ -410,20 +401,73 @@ export default function Home() {
                 <Pencil className="mr-2 h-4 w-4" />
                 Rename
               </Button>
-              <Button type="button" size="sm" variant="outline" onClick={resetCurrentRun}>
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Reset Template
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-red-400/30 text-red-200 hover:bg-red-400/10 hover:text-red-100"
-                onClick={clearCurrentRun}
-              >
-                <Eraser className="mr-2 h-4 w-4" />
-                Clear Run
-              </Button>
+              {confirmationAction === "reset" ? (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-yellow-400/30 text-yellow-100 hover:bg-yellow-400/10 hover:text-yellow-50"
+                    onClick={resetCurrentRun}
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Confirm Reset
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setConfirmationAction(null)}
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmationAction("reset")}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Reset Template
+                </Button>
+              )}
+              {confirmationAction === "clear" ? (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-red-400/30 text-red-200 hover:bg-red-400/10 hover:text-red-100"
+                    onClick={clearCurrentRun}
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Confirm Clear
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setConfirmationAction(null)}
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-red-400/30 text-red-200 hover:bg-red-400/10 hover:text-red-100"
+                  onClick={() => setConfirmationAction("clear")}
+                >
+                  <Eraser className="mr-2 h-4 w-4" />
+                  Clear Run
+                </Button>
+              )}
               <Button
                 type="button"
                 size="sm"
