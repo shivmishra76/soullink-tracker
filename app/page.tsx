@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { encounterTemplateLinks } from "@/lib/sample-data";
+import { encounterTemplateLinks, starterLinks } from "@/lib/sample-data";
 import {
   clearSoulLinks,
   createRunId,
@@ -48,7 +48,7 @@ const selectedRunStorageKey = "soullink-selected-run";
 const defaultRun: SoulRun = { id: soulLinkRunId, name: "Pokemon Black" };
 
 export default function Home() {
-  const [links, setLinks] = useState<SoulLink[]>(encounterTemplateLinks);
+  const [links, setLinks] = useState<SoulLink[]>(starterLinks);
   const [runs, setRuns] = useState<SoulRun[]>([defaultRun]);
   const [activeRunId, setActiveRunId] = useState(() => {
     if (typeof window === "undefined") {
