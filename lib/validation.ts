@@ -7,13 +7,17 @@ export function validateSoulLinkTypes(
   const duplicateTypes = new Set<PokemonType>();
 
   members.forEach((member) => {
-    member?.types.forEach((type) => {
-      if (seen.has(type)) {
-        duplicateTypes.add(type);
-      }
+    const primaryType = member?.types[0];
 
-      seen.add(type);
-    });
+    if (!primaryType) {
+      return;
+    }
+
+    if (seen.has(primaryType)) {
+      duplicateTypes.add(primaryType);
+    }
+
+    seen.add(primaryType);
   });
 
   return {

@@ -113,15 +113,6 @@ export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
         })
       );
       const members = Object.fromEntries(membersEntries) as SoulLink["members"];
-      const typeValidation = validateSoulLinkTypes(Object.values(members));
-
-      if (!typeValidation.isValid) {
-        setMessage(
-          `Invalid Soul Link. Duplicate type detected: ${typeValidation.duplicateTypes.join(", ")}.`
-        );
-        return;
-      }
-
       await onAddLink({
         id: `link-${linkNumber}-${Date.now()}`,
         linkNumber,
@@ -195,7 +186,7 @@ export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
           ))}
 
           <div className="flex flex-col gap-2">
-            <Button type="submit" disabled={isLoading || !validation.isValid}>
+            <Button type="submit" disabled={isLoading}>
               <Plus className="mr-2 h-4 w-4" />
               {isLoading ? "Adding..." : "Add Link"}
             </Button>
@@ -205,10 +196,10 @@ export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
             <div className="rounded-md border border-yellow-400/30 bg-yellow-400/10 p-3 text-sm text-yellow-100 lg:col-span-full">
               <p className="flex items-center gap-2 font-semibold">
                 <AlertTriangle className="h-4 w-4" />
-                Invalid Soul Link
+                Primary Type Warning
               </p>
               <p className="mt-1">
-                Duplicate type detected: {validation.duplicateTypes.join(", ")}
+                Duplicate primary type: {validation.duplicateTypes.join(", ")}
               </p>
             </div>
           )}

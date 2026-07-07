@@ -319,15 +319,6 @@ function EditLinkPanel({ link, onCancel, onSave }: EditLinkPanelProps) {
         })
       );
       const members = Object.fromEntries(memberEntries) as SoulLink["members"];
-      const typeValidation = validateSoulLinkTypes(Object.values(members));
-
-      if (!typeValidation.isValid) {
-        setMessage(
-          `Invalid Soul Link. Duplicate type detected: ${typeValidation.duplicateTypes.join(", ")}.`
-        );
-        return;
-      }
-
       onSave({
         ...link,
         area: area.trim(),
@@ -368,7 +359,7 @@ function EditLinkPanel({ link, onCancel, onSave }: EditLinkPanelProps) {
         </div>
       ))}
       <div className="flex gap-2 lg:flex-col">
-        <Button type="button" onClick={save} disabled={isSaving || !validation.isValid}>
+        <Button type="button" onClick={save} disabled={isSaving}>
           <Check className="mr-2 h-4 w-4" />
           {isSaving ? "Saving" : "Save"}
         </Button>
@@ -381,10 +372,10 @@ function EditLinkPanel({ link, onCancel, onSave }: EditLinkPanelProps) {
         <div className="rounded-md border border-yellow-400/30 bg-yellow-400/10 p-3 text-sm text-yellow-100 lg:col-span-full">
           <p className="flex items-center gap-2 font-semibold">
             <AlertTriangle className="h-4 w-4" />
-            Invalid Soul Link
+            Primary Type Warning
           </p>
           <p className="mt-1">
-            Duplicate type detected: {validation.duplicateTypes.join(", ")}
+            Duplicate primary type: {validation.duplicateTypes.join(", ")}
           </p>
         </div>
       )}
