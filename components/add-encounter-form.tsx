@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Plus } from "lucide-react";
 import { PokemonSearchInput } from "@/components/pokemon-search-input";
 import { TypeBadge } from "@/components/type-badge";
@@ -12,38 +12,45 @@ import { fetchPokemon, getPokemonIdByName } from "@/lib/pokemon";
 import type { PlayerName, SoulLink, SoulLinkMember } from "@/lib/types";
 import { validateSoulLinkTypes } from "@/lib/validation";
 
-const players: PlayerName[] = ["Nayan", "Shivank", "Srikar"];
-
 type FormState = {
   linkNumber: string;
   area: string;
   pokemon: Record<PlayerName, string>;
 };
 
-const initialForm: FormState = {
-  linkNumber: "",
-  area: "",
-  pokemon: {
-    Nayan: "",
-    Shivank: "",
-    Srikar: ""
-  }
-};
+function createInitialForm(playerNames: PlayerName[]): FormState {
+  return {
+    linkNumber: "",
+    area: "",
+    pokemon: Object.fromEntries(playerNames.map((player) => [player, ""]))
+  };
+}
+
+function createEmptyPreview(playerNames: PlayerName[]) {
+  return Object.fromEntries(playerNames.map((player) => [player, null])) as Record<
+    PlayerName,
+    SoulLinkMember
+  >;
+}
 
 type AddEncounterFormProps = {
   links: SoulLink[];
+  playerNames: PlayerName[];
   onAddLink: (link: SoulLink) => void | Promise<void>;
 };
 
-export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
-  const [form, setForm] = useState<FormState>(initialForm);
-  const [preview, setPreview] = useState<Record<PlayerName, SoulLinkMember>>({
-    Nayan: null,
-    Shivank: null,
-    Srikar: null
-  });
+export function AddEncounterForm({ links, playerNames, onAddLink }: AddEncounterFormProps) {
+  const [form, setForm] = useState<FormState>(() => createInitialForm(playerNames));
+  const [preview, setPreview] = useState<Record<PlayerName, SoulLinkMember>>(() =>
+    createEmptyPreview(playerNames)
+  );
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setForm(createInitialForm(playerNames));
+    setPreview(createEmptyPreview(playerNames));
+  }, [playerNames]);
 
   const validation = useMemo(
     () => validateSoulLinkTypes(Object.values(preview)),
@@ -96,8 +103,8 @@ export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
       }
 
       const membersEntries = await Promise.all(
-        players.map(async (player) => {
-          const name = form.pokemon[player].trim();
+        playerNames.map(async (player) => {
+          const name = form.pokemon[player]?.trim() ?? "";
 
           if (!name) {
             return [player, null] as const;
@@ -120,8 +127,8 @@ export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
         members,
         status: "Pending"
       });
-      setForm(initialForm);
-      setPreview({ Nayan: null, Shivank: null, Srikar: null });
+      setForm(createInitialForm(playerNames));
+      setPreview(createEmptyPreview(playerNames));
       setMessage("Link added as Pending.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not add link.");
@@ -136,7 +143,7 @@ export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
         <CardTitle className="text-xl text-white">Add New Link</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4 lg:grid-cols-[8rem_minmax(10rem,1fr)_repeat(3,minmax(11rem,1fr))_auto] lg:items-end" onSubmit={submit}>
+        <form className="grid gap-4 lg:grid-cols-[8rem_minmax(10rem,1fr)_repeat(2,minmax(11rem,1fr))_auto] xl:grid-cols-[8rem_minmax(10rem,1fr)_repeat(4,minmax(11rem,1fr))_auto] lg:items-end" onSubmit={submit}>
           <div className="grid gap-2">
             <Label htmlFor="linkNumber">Link Number</Label>
             <Input
@@ -166,12 +173,12 @@ export function AddEncounterForm({ links, onAddLink }: AddEncounterFormProps) {
             />
           </div>
 
-          {players.map((player) => (
+          {playerNames.map((player) => (
             <div key={player} className="grid gap-2">
               <Label htmlFor={`${player}-pokemon`}>{player} Pokemon</Label>
               <PokemonSearchInput
                 id={`${player}-pokemon`}
-                value={form.pokemon[player]}
+                value={form.pokemon[player] ?? ""}
                 onChange={(value) => setPokemon(player, value)}
                 placeholder="Search Pokemon..."
               />

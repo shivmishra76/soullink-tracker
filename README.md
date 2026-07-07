@@ -1,6 +1,6 @@
 # SoulLink Tracker
 
-A Next.js 14 tracker for a 3-player randomized Pokemon Black Soul Link Nuzlocke.
+A Next.js 14 tracker for configurable 2-4 player randomized Pokemon Soul Link Nuzlockes across Gen 1-5 games.
 
 ## Run Locally
 
@@ -33,8 +33,8 @@ NEXT_PUBLIC_SOULLINK_RUN_ID=pokemon-black
 npm run dev
 ```
 
-The app supports multiple shared runs. Use **New Run** to seed a fresh Pokemon Black encounter template, **Clear Run** to remove the selected run's rows, and **Reset Template** to replace the selected run with the template again.
+The app supports multiple shared runs. New visitors choose an existing run or create a new one with a Gen 1-5 game template and 2-4 player names. Use **New Run** to return to setup, **Clear Run** to remove the selected run's rows, and **Reset Template** to replace the selected run with that run's game template again.
 
-If you already deployed an older version, re-run `supabase/schema.sql` once so Supabase creates the `soul_runs` table and realtime policy. Existing `soul_links` data is preserved.
+If you already deployed an older version, re-run `supabase/schema.sql` once so Supabase adds `game_id` and `player_names` to `soul_runs` and refreshes realtime policy setup. Existing `soul_links` data is preserved.
 
 The SQL policies intentionally allow public read/write access for the shared no-login MVP. Use an unguessable run id or add authentication before sharing the app widely.

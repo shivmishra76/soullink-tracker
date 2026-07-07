@@ -1,4 +1,4 @@
-export type PlayerName = "Nayan" | "Shivank" | "Srikar";
+export type PlayerName = string;
 
 export type PokemonType =
   | "normal"
@@ -21,6 +21,16 @@ export type PokemonType =
 
 export type LinkStatus = "Alive" | "Dead" | "Boxed" | "Pending";
 
+export type GameTemplate = {
+  id: string;
+  name: string;
+  generation: number;
+  region: string;
+  maxPokemonId: number;
+  usesFairyType: boolean;
+  encounterAreas: string[];
+};
+
 export type PokemonSummary = {
   id: number;
   name: string;
@@ -41,6 +51,8 @@ export type SoulLink = {
 export type SoulRun = {
   id: string;
   name: string;
+  gameId: string;
+  playerNames: PlayerName[];
   createdAt?: string;
   updatedAt?: string;
 };

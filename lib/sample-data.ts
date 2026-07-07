@@ -1,60 +1,10 @@
+import { createEncounterTemplateLinks, defaultPlayerNames } from "@/lib/game-templates";
 import { getFallbackPokemon } from "@/lib/pokemon";
 import type { LinkStatus, PlayerName, SoulLink } from "@/lib/types";
 
-const players: PlayerName[] = ["Nayan", "Shivank", "Srikar"];
+export const encounterTemplateLinks = createEncounterTemplateLinks();
 
-const encounterAreas = [
-  "Starter",
-  "Route 1",
-  "Route 2",
-  "Dreamyard Static",
-  "Dreamyard Grass",
-  "Wellspring Cave",
-  "Route 3",
-  "Pinwheel Forest Outside",
-  "Pinwheel Forest Inside",
-  "Striaton",
-  "Castelia",
-  "Route 4",
-  "Desert Resort",
-  "Relic Castle",
-  "Route 5",
-  "Driftveil Drawbridge",
-  "Cold Storage",
-  "Route 6",
-  "Chargestone Cave",
-  "Route 7",
-  "Celestial Tower",
-  "Mistralton Cave",
-  "Guidance Chamber",
-  "Twist Mountain",
-  "Icirrus City",
-  "Dragonspiral Tower",
-  "Moor of Icirrus",
-  "Route 8",
-  "Tubeline Bridge",
-  "Route 9",
-  "Route 10",
-  "Victory Road",
-  "Trial Chamber",
-  "Route 11",
-  "Village Bridge",
-  "Route 12",
-  "Route 13",
-  "Giant Chasm",
-  "Route 14",
-  "Abundant Shrine",
-  "Route 15",
-  "Marvelous Bridge",
-  "Route 16",
-  "Lostlorn Forest",
-  "Route 17",
-  "Route 18",
-  "P2 Laboratory",
-  "Undella Town",
-  "Undella Bay",
-  "Challenger's Cave"
-];
+const players = defaultPlayerNames;
 
 type SeededRow = {
   linkNumber: number;
@@ -113,24 +63,6 @@ const seededRows: SeededRow[] = [
     status: "Alive"
   }
 ];
-
-function emptyMembers(): SoulLink["members"] {
-  return players.reduce(
-    (members, player) => ({
-      ...members,
-      [player]: null
-    }),
-    {} as SoulLink["members"]
-  );
-}
-
-export const encounterTemplateLinks: SoulLink[] = encounterAreas.map((area, index) => ({
-  id: `template-link-${index + 1}`,
-  linkNumber: index + 1,
-  area,
-  status: "Pending",
-  members: emptyMembers()
-}));
 
 export const starterLinks: SoulLink[] = encounterTemplateLinks.map((templateLink) => {
   const seededRow = seededRows.find((row) => row.linkNumber === templateLink.linkNumber);

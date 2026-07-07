@@ -20,7 +20,6 @@ import type { LinkStatus, PlayerName, SoulLink, SoulLinkMember } from "@/lib/typ
 import { cn } from "@/lib/utils";
 import { validateSoulLinkTypes } from "@/lib/validation";
 
-const players: PlayerName[] = ["Nayan", "Shivank", "Srikar"];
 const statuses: LinkStatus[] = ["Alive", "Dead", "Boxed", "Pending"];
 
 const rowStatusStyles: Record<LinkStatus, string> = {
@@ -39,6 +38,7 @@ const statusSelectStyles: Record<LinkStatus, string> = {
 
 type SoulLinkTableProps = {
   links: SoulLink[];
+  playerNames: PlayerName[];
   onStatusChange: (id: string, status: LinkStatus) => void | Promise<void>;
   onLinkUpdate: (link: SoulLink) => void | Promise<void>;
   onLinkDelete: (id: string) => void | Promise<void>;
@@ -47,6 +47,7 @@ type SoulLinkTableProps = {
 
 export function SoulLinkTable({
   links,
+  playerNames,
   onStatusChange,
   onLinkUpdate,
   onLinkDelete,
@@ -60,7 +61,10 @@ export function SoulLinkTable({
     }
 
     const needsHydration = links.some((link) =>
-      Object.values(link.members).some((member) => member && member.types.length === 0)
+      playerNames.some((player) => {
+        const member = link.members[player];
+        return member && member.types.length === 0;
+      })
     );
 
     if (!needsHydration) {
@@ -72,11 +76,11 @@ export function SoulLinkTable({
     Promise.all(
       links.map(async (link) => {
         const entries = await Promise.all(
-          players.map(async (player) => {
+          playerNames.map(async (player) => {
             const member = link.members[player];
 
             if (!member || member.types.length > 0) {
-              return [player, member] as const;
+              return [player, member ?? null] as const;
             }
 
             try {
@@ -101,7 +105,7 @@ export function SoulLinkTable({
     return () => {
       cancelled = true;
     };
-  }, [links, onLinksHydrated]);
+  }, [links, onLinksHydrated, playerNames]);
 
   return (
     <section className="glass-panel overflow-hidden rounded-lg">
@@ -109,20 +113,20 @@ export function SoulLinkTable({
         <h2 className="text-xl font-semibold text-white">Soul Link Table</h2>
       </div>
       <div className="max-h-[42rem] overflow-auto">
-        <table className="w-full table-fixed border-collapse text-left text-sm">
+        <table className="w-full min-w-[56rem] table-fixed border-collapse text-left text-sm">
           <colgroup>
             <col className="w-16" />
-            <col className="w-[15%]" />
-            <col className="w-[20%]" />
-            <col className="w-[20%]" />
-            <col className="w-[20%]" />
+            <col className="w-[16%]" />
+            {playerNames.map((player) => (
+              <col key={player} className="w-[18%]" />
+            ))}
             <col className="w-44" />
           </colgroup>
           <thead className="sticky top-0 z-10 bg-zinc-950/95 text-xs uppercase text-muted-foreground backdrop-blur">
             <tr>
               <th className="px-3 py-3 font-semibold">#</th>
               <th className="px-3 py-3 font-semibold">Area</th>
-              {players.map((player) => (
+              {playerNames.map((player) => (
                 <th key={player} className="px-3 py-3 font-semibold">
                   {player}
                 </th>
@@ -132,7 +136,9 @@ export function SoulLinkTable({
           </thead>
           <tbody>
             {links.map((link) => {
-              const validation = validateSoulLinkTypes(Object.values(link.members));
+              const validation = validateSoulLinkTypes(
+                playerNames.map((player) => link.members[player] ?? null)
+              );
 
               return (
                 <Fragment key={link.id}>
@@ -148,9 +154,9 @@ export function SoulLinkTable({
                     <td className="px-3 py-3 text-zinc-200">
                       <p className="truncate">{link.area}</p>
                     </td>
-                    {players.map((player) => (
+                    {playerNames.map((player) => (
                       <td key={player} className="px-3 py-3 align-middle">
-                        <PokemonCell pokemon={link.members[player]} compact />
+                        <PokemonCell pokemon={link.members[player] ?? null} compact />
                       </td>
                     ))}
                     <td className="px-3 py-3">
@@ -225,9 +231,10 @@ export function SoulLinkTable({
                   </tr>
                   {editingLinkId === link.id && (
                     <tr className="border-t border-white/10 bg-zinc-950/70">
-                      <td colSpan={6} className="px-3 py-4">
+                      <td colSpan={playerNames.length + 3} className="px-3 py-4">
                         <EditLinkPanel
                           link={link}
+                          playerNames={playerNames}
                           onCancel={() => setEditingLinkId(null)}
                           onSave={(updatedLink) => {
                             onLinkUpdate(updatedLink);
@@ -249,19 +256,20 @@ export function SoulLinkTable({
 
 type EditLinkPanelProps = {
   link: SoulLink;
+  playerNames: PlayerName[];
   onCancel: () => void;
   onSave: (link: SoulLink) => void;
 };
 
-function EditLinkPanel({ link, onCancel, onSave }: EditLinkPanelProps) {
+function EditLinkPanel({ link, playerNames, onCancel, onSave }: EditLinkPanelProps) {
   const [area, setArea] = useState(link.area);
-  const [pokemonNames, setPokemonNames] = useState<Record<PlayerName, string>>({
-    Nayan: link.members.Nayan?.name ?? "",
-    Shivank: link.members.Shivank?.name ?? "",
-    Srikar: link.members.Srikar?.name ?? ""
-  });
-  const [preview, setPreview] = useState<Record<PlayerName, SoulLinkMember>>(
-    link.members
+  const [pokemonNames, setPokemonNames] = useState<Record<PlayerName, string>>(() =>
+    Object.fromEntries(
+      playerNames.map((player) => [player, link.members[player]?.name ?? ""])
+    )
+  );
+  const [preview, setPreview] = useState<Record<PlayerName, SoulLinkMember>>(() =>
+    Object.fromEntries(playerNames.map((player) => [player, link.members[player] ?? null]))
   );
   const [message, setMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -302,8 +310,8 @@ function EditLinkPanel({ link, onCancel, onSave }: EditLinkPanelProps) {
       }
 
       const memberEntries = await Promise.all(
-        players.map(async (player) => {
-          const name = pokemonNames[player].trim();
+        playerNames.map(async (player) => {
+          const name = pokemonNames[player]?.trim() ?? "";
 
           if (!name) {
             return [player, null] as const;
@@ -332,7 +340,7 @@ function EditLinkPanel({ link, onCancel, onSave }: EditLinkPanelProps) {
   };
 
   return (
-    <div className="grid gap-4 rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:grid-cols-[minmax(10rem,1fr)_repeat(3,minmax(10rem,1fr))_auto] lg:items-end">
+    <div className="grid gap-4 rounded-lg border border-white/10 bg-white/[0.03] p-4 lg:grid-cols-[minmax(10rem,1fr)_repeat(2,minmax(10rem,1fr))_auto] xl:grid-cols-[minmax(10rem,1fr)_repeat(4,minmax(10rem,1fr))_auto] lg:items-end">
       <div className="grid gap-2">
         <Label htmlFor={`area-${link.id}`}>Area</Label>
         <Input
@@ -341,12 +349,12 @@ function EditLinkPanel({ link, onCancel, onSave }: EditLinkPanelProps) {
           onChange={(event) => setArea(event.target.value)}
         />
       </div>
-      {players.map((player) => (
+      {playerNames.map((player) => (
         <div key={player} className="grid gap-2">
           <Label htmlFor={`${link.id}-${player}`}>{player}</Label>
           <PokemonSearchInput
             id={`${link.id}-${player}`}
-            value={pokemonNames[player]}
+            value={pokemonNames[player] ?? ""}
             onChange={(value) => setPokemon(player, value)}
           />
           {preview[player] && (

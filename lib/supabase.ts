@@ -1,5 +1,9 @@
 import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
-import { encounterTemplateLinks } from "@/lib/sample-data";
+import {
+  createEncounterTemplateLinks,
+  defaultGameId,
+  defaultPlayerNames
+} from "@/lib/game-templates";
 import { fetchPokemon } from "@/lib/pokemon";
 import type {
   LinkStatus,
@@ -15,7 +19,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseProjectUrl = supabaseUrl ? new URL(supabaseUrl).origin : undefined;
 
 export const soulLinkRunId =
-  process.env.NEXT_PUBLIC_SOULLINK_RUN_ID ?? "pokemon-black";
+  process.env.NEXT_PUBLIC_SOULLINK_RUN_ID ?? defaultGameId;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
@@ -35,11 +39,19 @@ type SoulLinkRow = {
 type SoulRunRow = {
   id: string;
   name: string;
+  game_id?: string | null;
+  player_names?: PlayerName[] | null;
   created_at?: string;
   updated_at?: string;
 };
 
-const players: PlayerName[] = ["Nayan", "Shivank", "Srikar"];
+function normalizePlayerNames(playerNames?: PlayerName[] | null) {
+  const names = (playerNames ?? defaultPlayerNames)
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+  return names.length >= 2 ? names.slice(0, 4) : defaultPlayerNames;
+}
 
 function toRow(link: SoulLink, runId: string): SoulLinkRow {
   return {
@@ -66,6 +78,8 @@ function fromRunRow(row: SoulRunRow): SoulRun {
   return {
     id: row.id,
     name: row.name,
+    gameId: row.game_id ?? defaultGameId,
+    playerNames: normalizePlayerNames(row.player_names),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -90,13 +104,16 @@ export function createRunId(name: string) {
   return `${slug || "run"}-${Date.now()}`;
 }
 
-export async function hydrateLinkPokemon(link: SoulLink): Promise<SoulLink> {
+export async function hydrateLinkPokemon(
+  link: SoulLink,
+  playerNames: PlayerName[]
+): Promise<SoulLink> {
   const entries = await Promise.all(
-    players.map(async (player) => {
+    playerNames.map(async (player) => {
       const member = link.members[player];
 
       if (!member || member.types.length > 0) {
-        return [player, member] as const;
+        return [player, member ?? null] as const;
       }
 
       try {
@@ -116,7 +133,12 @@ export async function hydrateLinkPokemon(link: SoulLink): Promise<SoulLink> {
   };
 }
 
-function linksForRun(runId: string, links = encounterTemplateLinks) {
+function linksForRun(
+  runId: string,
+  gameId = defaultGameId,
+  playerNames = defaultPlayerNames,
+  links = createEncounterTemplateLinks(gameId, playerNames)
+) {
   return links.map((link) => ({
     ...link,
     id: `${runId}-${link.id}`
@@ -130,7 +152,7 @@ export async function fetchSoulRuns() {
 
   const { data, error } = await supabase
     .from("soul_runs")
-    .select("id, name, created_at, updated_at");
+    .select("id, name, game_id, player_names, created_at, updated_at");
 
   if (error) {
     throw error;
@@ -146,7 +168,7 @@ export async function ensureDefaultRun() {
 
   const { data, error } = await supabase
     .from("soul_runs")
-    .select("id, name, created_at, updated_at")
+    .select("id, name, game_id, player_names, created_at, updated_at")
     .eq("id", soulLinkRunId)
     .maybeSingle();
 
@@ -158,18 +180,28 @@ export async function ensureDefaultRun() {
     return fromRunRow(data as SoulRunRow);
   }
 
-  return createSoulRun({ id: soulLinkRunId, name: "Pokemon Black" });
+  return createSoulRun({
+    id: soulLinkRunId,
+    name: "Pokemon Black",
+    gameId: defaultGameId,
+    playerNames: defaultPlayerNames
+  });
 }
 
-export async function createSoulRun(run: Pick<SoulRun, "id" | "name">) {
+export async function createSoulRun(run: Pick<SoulRun, "id" | "name" | "gameId" | "playerNames">) {
   if (!supabase) {
-    return { id: run.id, name: run.name };
+    return run;
   }
 
   const { data, error } = await supabase
     .from("soul_runs")
-    .insert({ id: run.id, name: run.name })
-    .select("id, name, created_at, updated_at")
+    .insert({
+      id: run.id,
+      name: run.name,
+      game_id: run.gameId,
+      player_names: run.playerNames
+    })
+    .select("id, name, game_id, player_names, created_at, updated_at")
     .single();
 
   if (error) {
@@ -212,13 +244,20 @@ export async function fetchSoulLinks(runId: string) {
   return sortLinks((data ?? []).map((row) => fromRow(row as SoulLinkRow)));
 }
 
-export async function seedSoulLinks(runId: string, seedLinks = encounterTemplateLinks) {
+export async function seedSoulLinks(
+  runId: string,
+  gameId = defaultGameId,
+  playerNames = defaultPlayerNames,
+  seedLinks = createEncounterTemplateLinks(gameId, playerNames)
+) {
   if (!supabase) {
     return;
   }
 
   const hydratedLinks = await Promise.all(
-    linksForRun(runId, seedLinks).map(hydrateLinkPokemon)
+    linksForRun(runId, gameId, playerNames, seedLinks).map((link) =>
+      hydrateLinkPokemon(link, playerNames)
+    )
   );
   const { error } = await supabase
     .from("soul_links")
@@ -229,9 +268,13 @@ export async function seedSoulLinks(runId: string, seedLinks = encounterTemplate
   }
 }
 
-export async function resetSoulLinksFromTemplate(runId: string) {
+export async function resetSoulLinksFromTemplate(
+  runId: string,
+  gameId = defaultGameId,
+  playerNames = defaultPlayerNames
+) {
   await clearSoulLinks(runId);
-  await seedSoulLinks(runId);
+  await seedSoulLinks(runId, gameId, playerNames);
 }
 
 export async function createSoulLink(runId: string, link: SoulLink) {

@@ -14,6 +14,7 @@ import {
   X
 } from "lucide-react";
 import { AddEncounterForm } from "@/components/add-encounter-form";
+import { SetupRunScreen } from "@/components/setup-run-screen";
 import { SoulLinkTable } from "@/components/soul-link-table";
 import { SummaryCard } from "@/components/summary-card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,13 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { encounterTemplateLinks, starterLinks } from "@/lib/sample-data";
+import {
+  createEncounterTemplateLinks,
+  defaultGameId,
+  defaultPlayerNames,
+  getGameTemplate
+} from "@/lib/game-templates";
+import { starterLinks } from "@/lib/sample-data";
 import {
   clearSoulLinks,
   createRunId,
@@ -46,17 +53,28 @@ import {
 import type { LinkStatus, SoulLink, SoulRun } from "@/lib/types";
 
 const selectedRunStorageKey = "soullink-selected-run";
-const defaultRun: SoulRun = { id: soulLinkRunId, name: "Pokemon Black" };
+const defaultRun: SoulRun = {
+  id: soulLinkRunId,
+  name: "Pokemon Black",
+  gameId: defaultGameId,
+  playerNames: defaultPlayerNames
+};
+
+type NewRunInput = {
+  name: string;
+  gameId: string;
+  playerNames: string[];
+};
 
 export default function Home() {
   const [links, setLinks] = useState<SoulLink[]>(starterLinks);
   const [runs, setRuns] = useState<SoulRun[]>([defaultRun]);
-  const [activeRunId, setActiveRunId] = useState(() => {
+  const [activeRunId, setActiveRunId] = useState<string | null>(() => {
     if (typeof window === "undefined") {
-      return soulLinkRunId;
+      return null;
     }
 
-    return window.localStorage.getItem(selectedRunStorageKey) ?? soulLinkRunId;
+    return window.localStorage.getItem(selectedRunStorageKey);
   });
   const [isAddingLink, setIsAddingLink] = useState(false);
   const [confirmationAction, setConfirmationAction] = useState<"clear" | "reset" | null>(null);
@@ -64,9 +82,18 @@ export default function Home() {
     isSupabaseConfigured ? "Connecting..." : "Local mode"
   );
 
-  const activeRun = runs.find((run) => run.id === activeRunId) ?? runs[0] ?? defaultRun;
+  const activeRun = activeRunId
+    ? runs.find((run) => run.id === activeRunId) ?? null
+    : null;
+  const activeTemplate = getGameTemplate(activeRun?.gameId ?? defaultGameId);
 
   useEffect(() => {
+    if (!activeRunId) {
+      window.localStorage.removeItem(selectedRunStorageKey);
+      setConfirmationAction(null);
+      return;
+    }
+
     window.localStorage.setItem(selectedRunStorageKey, activeRunId);
     setConfirmationAction(null);
   }, [activeRunId]);
@@ -89,7 +116,7 @@ export default function Home() {
 
         setRuns(remoteRuns.length > 0 ? remoteRuns : [defaultRun]);
         setActiveRunId((current) => {
-          if (remoteRuns.some((run) => run.id === current)) {
+          if (current && remoteRuns.some((run) => run.id === current)) {
             return current;
           }
 
@@ -99,8 +126,9 @@ export default function Home() {
             return storedRunId;
           }
 
-          return soulLinkRunId;
+          return null;
         });
+        setSyncMessage("Choose or create a run");
       } catch (error) {
         if (!cancelled) {
           setSyncMessage(
@@ -123,7 +151,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
+    if (!isSupabaseConfigured || !activeRunId) {
       return;
     }
 
@@ -168,7 +196,55 @@ export default function Home() {
     [links]
   );
 
+  const selectRun = (runId: string) => {
+    const run = runs.find((currentRun) => currentRun.id === runId);
+
+    if (!run) {
+      return;
+    }
+
+    setActiveRunId(runId);
+    setIsAddingLink(false);
+
+    if (!isSupabaseConfigured) {
+      setLinks(run.id === defaultRun.id ? starterLinks : createEncounterTemplateLinks(run.gameId, run.playerNames));
+    }
+  };
+
+  const createRunFromSetup = async ({ name, gameId, playerNames }: NewRunInput) => {
+    const run = { id: createRunId(name), name, gameId, playerNames };
+    const templateLinks = createEncounterTemplateLinks(gameId, playerNames);
+
+    if (!isSupabaseConfigured) {
+      setRuns((current) => [...current, run]);
+      setActiveRunId(run.id);
+      setLinks(templateLinks);
+      setSyncMessage("Local mode");
+      return;
+    }
+
+    try {
+      const createdRun = await createSoulRun(run);
+      await resetSoulLinksFromTemplate(createdRun.id, createdRun.gameId, createdRun.playerNames);
+      const [remoteRuns, remoteLinks] = await Promise.all([
+        fetchSoulRuns(),
+        fetchSoulLinks(createdRun.id)
+      ]);
+      setRuns(remoteRuns);
+      setActiveRunId(createdRun.id);
+      setLinks(remoteLinks);
+      setSyncMessage(`Shared run: ${createdRun.name}`);
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Could not create run");
+      throw error;
+    }
+  };
+
   const addLink = async (link: SoulLink) => {
+    if (!activeRun) {
+      return;
+    }
+
     setLinks((current) =>
       [...current, link].sort((a, b) => a.linkNumber - b.linkNumber)
     );
@@ -179,7 +255,7 @@ export default function Home() {
     }
 
     try {
-      await createSoulLink(activeRunId, link);
+      await createSoulLink(activeRun.id, link);
     } catch (error) {
       setSyncMessage(error instanceof Error ? error.message : "Could not add link");
       setLinks((current) => current.filter((currentLink) => currentLink.id !== link.id));
@@ -187,6 +263,10 @@ export default function Home() {
   };
 
   const updateStatus = async (id: string, status: LinkStatus) => {
+    if (!activeRun) {
+      return;
+    }
+
     const linkToUpdate = links.find((link) => link.id === id);
 
     if (!linkToUpdate) {
@@ -204,7 +284,7 @@ export default function Home() {
     }
 
     try {
-      await updateSoulLink(activeRunId, updatedLink);
+      await updateSoulLink(activeRun.id, updatedLink);
     } catch (error) {
       setSyncMessage(
         error instanceof Error ? error.message : "Could not update status"
@@ -216,6 +296,10 @@ export default function Home() {
   };
 
   const updateLink = async (updatedLink: SoulLink) => {
+    if (!activeRun) {
+      return;
+    }
+
     const previousLink = links.find((link) => link.id === updatedLink.id);
 
     setLinks((current) =>
@@ -229,7 +313,7 @@ export default function Home() {
     }
 
     try {
-      await updateSoulLink(activeRunId, updatedLink);
+      await updateSoulLink(activeRun.id, updatedLink);
     } catch (error) {
       setSyncMessage(error instanceof Error ? error.message : "Could not save link");
 
@@ -244,6 +328,10 @@ export default function Home() {
   };
 
   const deleteLink = async (id: string) => {
+    if (!activeRun) {
+      return;
+    }
+
     const previousLink = links.find((link) => link.id === id);
 
     setLinks((current) => current.filter((link) => link.id !== id));
@@ -253,7 +341,7 @@ export default function Home() {
     }
 
     try {
-      await deleteSoulLink(activeRunId, id);
+      await deleteSoulLink(activeRun.id, id);
     } catch (error) {
       setSyncMessage(
         error instanceof Error ? error.message : "Could not delete link"
@@ -267,39 +355,12 @@ export default function Home() {
     }
   };
 
-  const createNewRun = async () => {
-    const name = window.prompt("Name this run", `Pokemon Black Run ${runs.length + 1}`);
-
-    if (!name?.trim()) {
-      return;
-    }
-
-    const run = { id: createRunId(name), name: name.trim() };
-
-    if (!isSupabaseConfigured) {
-      setRuns((current) => [...current, run]);
-      setActiveRunId(run.id);
-      setLinks(encounterTemplateLinks);
-      return;
-    }
-
-    try {
-      const createdRun = await createSoulRun(run);
-      await resetSoulLinksFromTemplate(createdRun.id);
-      const [remoteRuns, remoteLinks] = await Promise.all([
-        fetchSoulRuns(),
-        fetchSoulLinks(createdRun.id)
-      ]);
-      setRuns(remoteRuns);
-      setActiveRunId(createdRun.id);
-      setLinks(remoteLinks);
-    } catch (error) {
-      setSyncMessage(error instanceof Error ? error.message : "Could not create run");
-    }
-  };
-
   const renameRun = async () => {
-    const name = window.prompt("Rename this run", activeRun?.name ?? "Pokemon Black");
+    if (!activeRun) {
+      return;
+    }
+
+    const name = window.prompt("Rename this run", activeRun.name);
 
     if (!name?.trim()) {
       return;
@@ -308,14 +369,14 @@ export default function Home() {
     if (!isSupabaseConfigured) {
       setRuns((current) =>
         current.map((run) =>
-          run.id === activeRunId ? { ...run, name: name.trim() } : run
+          run.id === activeRun.id ? { ...run, name: name.trim() } : run
         )
       );
       return;
     }
 
     try {
-      await updateSoulRunName(activeRunId, name.trim());
+      await updateSoulRunName(activeRun.id, name.trim());
       setRuns(await fetchSoulRuns());
       setSyncMessage(`Shared run: ${name.trim()}`);
     } catch (error) {
@@ -324,6 +385,10 @@ export default function Home() {
   };
 
   const clearCurrentRun = async () => {
+    if (!activeRun) {
+      return;
+    }
+
     setConfirmationAction(null);
 
     const previousLinks = links;
@@ -334,7 +399,7 @@ export default function Home() {
     }
 
     try {
-      await clearSoulLinks(activeRunId);
+      await clearSoulLinks(activeRun.id);
     } catch (error) {
       setSyncMessage(error instanceof Error ? error.message : "Could not clear run");
       setLinks(previousLinks);
@@ -342,23 +407,39 @@ export default function Home() {
   };
 
   const resetCurrentRun = async () => {
+    if (!activeRun) {
+      return;
+    }
+
     setConfirmationAction(null);
 
     const previousLinks = links;
-    setLinks(encounterTemplateLinks);
+    const templateLinks = createEncounterTemplateLinks(activeRun.gameId, activeRun.playerNames);
+    setLinks(templateLinks);
 
     if (!isSupabaseConfigured) {
       return;
     }
 
     try {
-      await resetSoulLinksFromTemplate(activeRunId);
-      setLinks(await fetchSoulLinks(activeRunId));
+      await resetSoulLinksFromTemplate(activeRun.id, activeRun.gameId, activeRun.playerNames);
+      setLinks(await fetchSoulLinks(activeRun.id));
     } catch (error) {
       setSyncMessage(error instanceof Error ? error.message : "Could not reset run");
       setLinks(previousLinks);
     }
   };
+
+  if (!activeRun) {
+    return (
+      <SetupRunScreen
+        runs={runs}
+        syncMessage={syncMessage}
+        onSelectRun={selectRun}
+        onCreateRun={createRunFromSetup}
+      />
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_34rem),radial-gradient(circle_at_top_right,rgba(168,85,247,0.12),transparent_28rem),#030712]">
@@ -366,7 +447,7 @@ export default function Home() {
         <header className="flex flex-col gap-4 py-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-medium text-cyan-200">
-              Pokemon Black randomized run
+              {activeTemplate.name} · {activeRun.playerNames.join(" / ")}
             </p>
             <h1 className="text-3xl font-bold tracking-tight text-white sm:text-5xl">
               SoulLink Tracker
@@ -375,7 +456,7 @@ export default function Home() {
           <div className="flex flex-col gap-2 lg:items-end">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="min-w-56">
-                <Select value={activeRunId} onValueChange={setActiveRunId}>
+                <Select value={activeRun.id} onValueChange={selectRun}>
                   <SelectTrigger className="h-9 border-cyan-400/30 bg-cyan-400/10 text-cyan-100">
                     <SelectValue placeholder="Select run" />
                   </SelectTrigger>
@@ -393,7 +474,7 @@ export default function Home() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" onClick={createNewRun}>
+              <Button type="button" size="sm" onClick={() => setActiveRunId(null)}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Run
               </Button>
@@ -518,19 +599,22 @@ export default function Home() {
 
         {isAddingLink && (
           <div className="animate-in fade-in slide-in-from-top-2">
-            <AddEncounterForm links={links} onAddLink={addLink} />
+            <AddEncounterForm
+              links={links}
+              playerNames={activeRun.playerNames}
+              onAddLink={addLink}
+            />
           </div>
         )}
 
-        <div>
-          <SoulLinkTable
-            links={links}
-            onStatusChange={updateStatus}
-            onLinkUpdate={updateLink}
-            onLinkDelete={deleteLink}
-            onLinksHydrated={setLinks}
-          />
-        </div>
+        <SoulLinkTable
+          links={links}
+          playerNames={activeRun.playerNames}
+          onStatusChange={updateStatus}
+          onLinkUpdate={updateLink}
+          onLinkDelete={deleteLink}
+          onLinksHydrated={setLinks}
+        />
       </div>
     </main>
   );

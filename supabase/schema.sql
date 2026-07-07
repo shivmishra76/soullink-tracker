@@ -1,9 +1,17 @@
 create table if not exists public.soul_runs (
   id text primary key,
   name text not null,
+  game_id text not null default 'pokemon-black',
+  player_names jsonb not null default '["Nayan", "Shivank", "Srikar"]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.soul_runs
+add column if not exists game_id text not null default 'pokemon-black';
+
+alter table public.soul_runs
+add column if not exists player_names jsonb not null default '["Nayan", "Shivank", "Srikar"]'::jsonb;
 
 create table if not exists public.soul_links (
   id text primary key,
@@ -39,9 +47,11 @@ before update on public.soul_links
 for each row
 execute function public.set_updated_at();
 
-insert into public.soul_runs (id, name)
-values ('pokemon-black', 'Pokemon Black')
-on conflict (id) do nothing;
+insert into public.soul_runs (id, name, game_id, player_names)
+values ('pokemon-black', 'Pokemon Black', 'pokemon-black', '["Nayan", "Shivank", "Srikar"]'::jsonb)
+on conflict (id) do update
+set game_id = coalesce(public.soul_runs.game_id, excluded.game_id),
+    player_names = coalesce(public.soul_runs.player_names, excluded.player_names);
 
 alter table public.soul_runs enable row level security;
 alter table public.soul_links enable row level security;
