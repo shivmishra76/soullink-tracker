@@ -262,6 +262,40 @@ export async function updateSoulLink(runId: string, link: SoulLink) {
   }
 }
 
+export async function updateSoulLinkOrder(runId: string, orderedLinks: SoulLink[]) {
+  if (!supabase || orderedLinks.length === 0) {
+    return;
+  }
+
+  const maxLinkNumber = Math.max(...orderedLinks.map((link) => link.linkNumber));
+  const temporaryBase = maxLinkNumber + orderedLinks.length + 1000;
+
+  for (let index = 0; index < orderedLinks.length; index += 1) {
+    const link = orderedLinks[index];
+    const { error } = await supabase
+      .from("soul_links")
+      .update({ link_number: temporaryBase + index })
+      .eq("id", link.id)
+      .eq("run_id", runId);
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  for (const link of orderedLinks) {
+    const { error } = await supabase
+      .from("soul_links")
+      .update({ link_number: link.linkNumber })
+      .eq("id", link.id)
+      .eq("run_id", runId);
+
+    if (error) {
+      throw error;
+    }
+  }
+}
+
 export async function deleteSoulLink(runId: string, id: string) {
   if (!supabase) {
     return;

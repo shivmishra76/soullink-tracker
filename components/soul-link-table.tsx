@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { AlertTriangle, Check, Pencil, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, Check, Pencil, Trash2, X } from "lucide-react";
 import { PokemonCell } from "@/components/pokemon-cell";
 import { PokemonSearchInput } from "@/components/pokemon-search-input";
 import { TypeBadge } from "@/components/type-badge";
@@ -42,6 +42,8 @@ type SoulLinkTableProps = {
   onStatusChange: (id: string, status: LinkStatus) => void | Promise<void>;
   onLinkUpdate: (link: SoulLink) => void | Promise<void>;
   onLinkDelete: (id: string) => void | Promise<void>;
+  onLinkMove: (id: string, targetLinkNumber: number) => void | Promise<void>;
+  isReorderDisabled?: boolean;
   onLinksHydrated?: (links: SoulLink[]) => void;
 };
 
@@ -50,6 +52,8 @@ export function SoulLinkTable({
   onStatusChange,
   onLinkUpdate,
   onLinkDelete,
+  onLinkMove,
+  isReorderDisabled = false,
   onLinksHydrated
 }: SoulLinkTableProps) {
   const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
@@ -177,7 +181,28 @@ export function SoulLinkTable({
                             ))}
                           </SelectContent>
                         </Select>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-full"
+                            aria-label={`Move link ${link.linkNumber}`}
+                            disabled={isReorderDisabled}
+                            onClick={() => {
+                              const target = window.prompt(
+                                `Move link #${link.linkNumber} to which link number?`,
+                                String(link.linkNumber)
+                              );
+                              const targetLinkNumber = Number(target);
+
+                              if (target && Number.isInteger(targetLinkNumber)) {
+                                onLinkMove(link.id, targetLinkNumber);
+                              }
+                            }}
+                          >
+                            <ArrowUpDown className="h-3.5 w-3.5" />
+                          </Button>
                           <Button
                             type="button"
                             variant="outline"

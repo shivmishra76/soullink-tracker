@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Check,
@@ -35,6 +35,7 @@ import {
   fetchSoulLinks,
   fetchSoulRuns,
   isSupabaseConfigured,
+  updateSoulLinkOrder,
   resetSoulLinksFromTemplate,
   soulLinkRunId,
   subscribeToSoulLinks,
@@ -47,6 +48,20 @@ import type { LinkStatus, SoulLink, SoulRun } from "@/lib/types";
 
 const selectedRunStorageKey = "soullink-selected-run";
 const defaultRun: SoulRun = { id: soulLinkRunId, name: "Pokemon Black" };
+const linkFilters = ["All", "Alive + Boxed", "Alive", "Boxed", "Dead", "Pending"] as const;
+type LinkFilter = (typeof linkFilters)[number];
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  return fallback;
+}
 
 export default function Home() {
   const [links, setLinks] = useState<SoulLink[]>(starterLinks);
@@ -60,9 +75,11 @@ export default function Home() {
   });
   const [isAddingLink, setIsAddingLink] = useState(false);
   const [confirmationAction, setConfirmationAction] = useState<"clear" | "reset" | null>(null);
+  const [linkFilter, setLinkFilter] = useState<LinkFilter>("All");
   const [syncMessage, setSyncMessage] = useState(
     isSupabaseConfigured ? "Connecting..." : "Local mode"
   );
+  const isReorderingRef = useRef(false);
 
   const activeRun = runs.find((run) => run.id === activeRunId) ?? runs[0] ?? defaultRun;
 
@@ -133,7 +150,7 @@ export default function Home() {
       try {
         const remoteLinks = await fetchSoulLinks(activeRunId);
 
-        if (!cancelled) {
+        if (!cancelled && !isReorderingRef.current) {
           setLinks(remoteLinks);
           setSyncMessage(`Shared run: ${activeRun?.name ?? activeRunId}`);
         }
@@ -167,6 +184,18 @@ export default function Home() {
     }),
     [links]
   );
+
+  const filteredLinks = useMemo(() => {
+    if (linkFilter === "All") {
+      return links;
+    }
+
+    if (linkFilter === "Alive + Boxed") {
+      return links.filter((link) => link.status === "Alive" || link.status === "Boxed");
+    }
+
+    return links.filter((link) => link.status === linkFilter);
+  }, [linkFilter, links]);
 
   const addLink = async (link: SoulLink) => {
     setLinks((current) =>
@@ -240,6 +269,72 @@ export default function Home() {
             .sort((a, b) => a.linkNumber - b.linkNumber)
         );
       }
+    }
+  };
+
+  const moveLink = async (id: string, targetLinkNumber: number) => {
+    const orderedLinks = [...links].sort((a, b) => a.linkNumber - b.linkNumber);
+    const linkToMove = orderedLinks.find((link) => link.id === id);
+
+    if (!linkToMove || targetLinkNumber < 1) {
+      return;
+    }
+
+    const minLinkNumber = Math.min(...orderedLinks.map((link) => link.linkNumber));
+    const maxLinkNumber = Math.max(...orderedLinks.map((link) => link.linkNumber));
+    const clampedTarget = Math.min(
+      Math.max(targetLinkNumber, minLinkNumber),
+      maxLinkNumber
+    );
+
+    if (clampedTarget === linkToMove.linkNumber) {
+      return;
+    }
+
+    const previousLinks = links;
+    const reorderedLinks = orderedLinks
+      .map((link) => {
+        if (link.id === linkToMove.id) {
+          return { ...link, linkNumber: clampedTarget };
+        }
+
+        if (
+          clampedTarget < linkToMove.linkNumber &&
+          link.linkNumber >= clampedTarget &&
+          link.linkNumber < linkToMove.linkNumber
+        ) {
+          return { ...link, linkNumber: link.linkNumber + 1 };
+        }
+
+        if (
+          clampedTarget > linkToMove.linkNumber &&
+          link.linkNumber > linkToMove.linkNumber &&
+          link.linkNumber <= clampedTarget
+        ) {
+          return { ...link, linkNumber: link.linkNumber - 1 };
+        }
+
+        return link;
+      })
+      .sort((a, b) => a.linkNumber - b.linkNumber);
+
+    setLinks(reorderedLinks);
+
+    if (!isSupabaseConfigured) {
+      return;
+    }
+
+    isReorderingRef.current = true;
+
+    try {
+      await updateSoulLinkOrder(activeRunId, reorderedLinks);
+      setLinks(await fetchSoulLinks(activeRunId));
+      setSyncMessage(`Moved link #${linkToMove.linkNumber} to #${clampedTarget}`);
+    } catch (error) {
+      setSyncMessage(getErrorMessage(error, "Could not move link"));
+      setLinks(previousLinks);
+    } finally {
+      isReorderingRef.current = false;
     }
   };
 
@@ -522,12 +617,30 @@ export default function Home() {
           </div>
         )}
 
-        <div>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+            {linkFilters.map((filter) => (
+              <Button
+                key={filter}
+                type="button"
+                size="sm"
+                variant={linkFilter === filter ? "default" : "outline"}
+                onClick={() => setLinkFilter(filter)}
+              >
+                {filter}
+              </Button>
+            ))}
+            <p className="ml-auto text-sm text-muted-foreground">
+              Showing {filteredLinks.length} of {links.length}
+            </p>
+          </div>
           <SoulLinkTable
-            links={links}
+            links={filteredLinks}
             onStatusChange={updateStatus}
             onLinkUpdate={updateLink}
             onLinkDelete={deleteLink}
+            onLinkMove={moveLink}
+            isReorderDisabled={linkFilter !== "All"}
             onLinksHydrated={setLinks}
           />
         </div>
